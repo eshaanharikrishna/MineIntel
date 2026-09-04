@@ -170,3 +170,11 @@ export interface IdentifiedTopic {
   color: string;
 }
 
+export interface TrashedDocumentItem {
+  document: DocumentItem;
+  pages: PageItem[];
+  tables: TableItem[];
+  deleted_at: string;
+  deleted_by?: string;
+}
+

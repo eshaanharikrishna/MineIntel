@@ -19,6 +19,7 @@ import {
   Moon,
   Sparkles,
   Menu,
+  Trash2,
 } from 'lucide-react';
 import { UserProfile, DocumentItem, PageItem, TableItem } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -110,6 +111,12 @@ export const Header: React.FC<HeaderProps> = ({
           label: 'Automated Report Generator',
           desc: 'Automated conclusions & technical reasons',
           icon: <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />,
+        };
+      case 'trash':
+        return {
+          label: 'Trash & File Recovery',
+          desc: 'Recover deleted reports, borehole logs & spreadsheets',
+          icon: <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />,
         };
       default:
         return {

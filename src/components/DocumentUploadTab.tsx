@@ -13,6 +13,11 @@ import {
   Link2,
   Globe,
   ExternalLink,
+  Trash2,
+  RotateCcw,
+  X,
+  Lock,
+  User,
 } from 'lucide-react';
 
 interface DocumentUploadTabProps {
@@ -25,6 +30,9 @@ interface DocumentUploadTabProps {
   currentUser: UserProfile | null;
   onOpenLogin: () => void;
   onSelectQuickProfile?: (user: UserProfile) => void;
+  onDeleteDocument?: (docId: string) => void;
+  trashCount?: number;
+  onRecoverDocument?: (docId: string) => void;
 }
 
 export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
@@ -34,6 +42,11 @@ export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
   onSelectDocument,
   selectedDocId,
   onNavigateTab,
+  currentUser,
+  onOpenLogin,
+  onDeleteDocument,
+  trashCount = 0,
+  onRecoverDocument,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
@@ -43,8 +56,16 @@ export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
   const [pastedContent, setPastedContent] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkTitle, setLinkTitle] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [recentlyDeletedDoc, setRecentlyDeletedDoc] = useState<{ id: string; name: string } | null>(null);
 
   const processRealFile = (file: File) => {
+    if (!currentUser) {
+      setUploadFeedback('Account login required: Please sign in or create an account to upload files.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
+
     setIsUploading(true);
     setUploadFeedback(`Ingesting "${file.name}" and extracting pages & tables...`);
 
@@ -232,6 +253,11 @@ export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
 
   const handlePasteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      setUploadFeedback('Account login required: Please sign in or create an account to paste and upload documents.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
     if (!pastedContent.trim()) return;
 
     setIsUploading(true);
@@ -296,6 +322,11 @@ export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
 
   const handleLinkSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      setUploadFeedback('Account login required: Please sign in or create an account to import documents.');
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
     if (!linkUrl.trim()) return;
 
     setIsUploading(true);
@@ -407,6 +438,57 @@ export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left: Upload / Link / Paste */}
         <div className="lg:col-span-1 space-y-4">
+          {/* User Account Scope Banner */}
+          {!currentUser ? (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex items-start gap-3 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div className="space-y-1.5 min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    Login Required to Upload
+                  </h4>
+                  <span className="text-[9px] bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                    User Account
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
+                  You must be logged in with your account to upload and store documents. Uploaded files are saved within your account.
+                </p>
+                {onOpenLogin && (
+                  <button
+                    type="button"
+                    onClick={onOpenLogin}
+                    className="mt-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Sign In to Upload</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/80 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                  {currentUser.name.charAt(0)}
+                </div>
+                <div className="min-w-0 text-xs">
+                  <p className="font-bold text-slate-900 dark:text-white truncate">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[10px] text-blue-700 dark:text-blue-400 truncate">
+                    Saved in your account: {documents.length} {documents.length === 1 ? 'file' : 'files'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded font-semibold shrink-0">
+                Account Active
+              </span>
+            </div>
+          )}
+
           {/* Mode Switcher */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
             <button
@@ -459,6 +541,13 @@ export const DocumentUploadTab: React.FC<DocumentUploadTabProps> = ({
               </div>
 
               <label
+                onClick={(e) => {
+                  if (!currentUser) {
+                    e.preventDefault();
+                    setUploadFeedback('Account login required: Please sign in or create an account to upload files.');
+                    if (onOpenLogin) onOpenLogin();
+                  }
+                }}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={(e) => {
@@ -663,27 +752,78 @@ Depth (m), Lithology, Seam, Ash %
         {/* Right: Ingested Documents Repository Table */}
         <div className="lg:col-span-2">
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs transition-colors">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Database className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   <span>Uploaded Files ({documents.length})</span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                  Click on any file to view its extracted text, tables, and auto-generated report.
+                  Click on any file to view extracted text, or delete files to move them to Trash.
                 </p>
               </div>
 
-              {documents.length > 0 && (
-                <button
-                  onClick={() => onNavigateTab('extraction')}
-                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer"
-                >
-                  <span>Read Text</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {trashCount > 0 && (
+                  <button
+                    onClick={() => onNavigateTab('trash')}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/60 flex items-center gap-1 cursor-pointer transition"
+                    title="Open Trash to view and recover deleted files"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Trash ({trashCount})</span>
+                  </button>
+                )}
+
+                {documents.length > 0 && (
+                  <button
+                    onClick={() => onNavigateTab('extraction')}
+                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Read Text</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Quick Undo Deleted Document Notice */}
+            {recentlyDeletedDoc && (
+              <div className="mb-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 animate-fadeIn">
+                <div className="flex items-center gap-2 truncate pr-2">
+                  <Trash2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="truncate">
+                    Moved &ldquo;<strong>{recentlyDeletedDoc.name}</strong>&rdquo; to Trash.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {onRecoverDocument && (
+                    <button
+                      onClick={() => {
+                        onRecoverDocument(recentlyDeletedDoc.id);
+                        setRecentlyDeletedDoc(null);
+                      }}
+                      className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Undo</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onNavigateTab('trash')}
+                    className="text-amber-700 dark:text-amber-300 hover:underline text-[11px] font-semibold cursor-pointer"
+                  >
+                    Open Trash
+                  </button>
+                  <button
+                    onClick={() => setRecentlyDeletedDoc(null)}
+                    className="text-amber-500 hover:text-amber-700 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               {documents.length === 0 ? (
@@ -693,10 +833,21 @@ Depth (m), Lithology, Seam, Ash %
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
                     Upload your PDF exploration reports, Excel spreadsheets, CSV data, or capture a photo above to populate the repository.
                   </p>
+                  {trashCount > 0 && (
+                    <button
+                      onClick={() => onNavigateTab('trash')}
+                      className="mt-3 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Check Trash ({trashCount} recoverable)</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 documents.map((doc) => {
                   const isSelected = selectedDocId === doc.id;
+                  const isConfirming = confirmDeleteId === doc.id;
+
                   return (
                     <div
                       key={doc.id}
@@ -741,9 +892,60 @@ Depth (m), Lithology, Seam, Ash %
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 shrink-0">
-                        <span>View</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Delete / Move to Trash action button */}
+                        {isConfirming ? (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/70 p-1 rounded-lg border border-rose-300 dark:border-rose-800"
+                          >
+                            <span className="text-[10px] text-rose-700 dark:text-rose-300 font-bold px-1">
+                              Move to Trash?
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onDeleteDocument) {
+                                  onDeleteDocument(doc.id);
+                                  setRecentlyDeletedDoc({ id: doc.id, name: doc.original_filename });
+                                  setConfirmDeleteId(null);
+                                  setTimeout(() => setRecentlyDeletedDoc(null), 6000);
+                                }
+                              }}
+                              className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded-sm cursor-pointer shadow-xs"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDeleteId(null);
+                              }}
+                              className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-[10px] cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteId(doc.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition cursor-pointer"
+                            title="Delete and move to Trash"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                          <span>View</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </div>
                       </div>
                     </div>
                   );

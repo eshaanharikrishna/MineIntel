@@ -10,17 +10,12 @@ import { GroundedQATab } from './components/GroundedQATab';
 import { DiscrepancyValidatorTab } from './components/DiscrepancyValidatorTab';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { ReportGeneratorTab } from './components/ReportGeneratorTab';
+import { TrashTab } from './components/TrashTab';
 import { JudgePitchModal } from './components/JudgePitchModal';
 import { JudgeQAModal } from './components/JudgeQAModal';
 import { GroundTruthMetricsModal } from './components/GroundTruthMetricsModal';
 import { LoginModal } from './components/LoginModal';
-import { DocumentItem, PageItem, TableItem, ValidationIssue, UserProfile } from './types';
-import {
-  INITIAL_DOCUMENTS,
-  SAMPLE_PAGES,
-  SAMPLE_TABLES,
-  SAMPLE_DISCREPANCIES,
-} from './data/sampleMiningData';
+import { DocumentItem, PageItem, TableItem, ValidationIssue, UserProfile, TrashedDocumentItem } from './types';
 import {
   Award,
   HelpCircle,
@@ -43,13 +38,134 @@ export default function App() {
   const [tabHistory, setTabHistory] = useState<string[]>(['home']);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
-  const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
-  const [selectedDocId, setSelectedDocId] = useState<string>('CMPDI-GEO-2024-001');
-  const [pages, setPages] = useState<PageItem[]>(SAMPLE_PAGES);
-  const [tables, setTables] = useState<TableItem[]>(SAMPLE_TABLES);
-  const [discrepancies, setDiscrepancies] = useState<ValidationIssue[]>(SAMPLE_DISCREPANCIES);
-
+  // Authenticated User State - starts null so every fresh visit is empty
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  // User-scoped document and workspace state
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [selectedDocId, setSelectedDocId] = useState<string>('');
+  const [pages, setPages] = useState<PageItem[]>([]);
+  const [tables, setTables] = useState<TableItem[]>([]);
+  const [discrepancies, setDiscrepancies] = useState<ValidationIssue[]>([]);
+  const [trashedDocuments, setTrashedDocuments] = useState<TrashedDocumentItem[]>([]);
+
+  // When user logs in or switches accounts, load that user's account-scoped files
+  React.useEffect(() => {
+    if (currentUser) {
+      try {
+        const savedData = localStorage.getItem(`mineintel_user_workspace_${currentUser.id}`);
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          const userDocs = Array.isArray(parsed.documents) ? parsed.documents : [];
+          setDocuments(userDocs);
+          setPages(Array.isArray(parsed.pages) ? parsed.pages : []);
+          setTables(Array.isArray(parsed.tables) ? parsed.tables : []);
+          setDiscrepancies(Array.isArray(parsed.discrepancies) ? parsed.discrepancies : []);
+          setTrashedDocuments(Array.isArray(parsed.trashedDocuments) ? parsed.trashedDocuments : []);
+          setSelectedDocId(userDocs.length > 0 ? userDocs[0].id : '');
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      setDocuments([]);
+      setPages([]);
+      setTables([]);
+      setDiscrepancies([]);
+      setTrashedDocuments([]);
+      setSelectedDocId('');
+    } else {
+      // Unauthenticated state: clean fresh workspace every time
+      setDocuments([]);
+      setPages([]);
+      setTables([]);
+      setDiscrepancies([]);
+      setTrashedDocuments([]);
+      setSelectedDocId('');
+    }
+  }, [currentUser?.id]);
+
+  // Persist workspace data strictly within current user's account
+  React.useEffect(() => {
+    if (currentUser) {
+      try {
+        const payload = {
+          documents,
+          pages,
+          tables,
+          discrepancies,
+          trashedDocuments,
+        };
+        localStorage.setItem(`mineintel_user_workspace_${currentUser.id}`, JSON.stringify(payload));
+      } catch {
+        // ignore
+      }
+    }
+  }, [currentUser?.id, documents, pages, tables, discrepancies, trashedDocuments]);
+
+  // Trash and recovery handlers
+  const handleDeleteDocument = (docId: string) => {
+    const docToDelete = documents.find((d) => d.id === docId);
+    if (!docToDelete) return;
+
+    const docPages = pages.filter((p) => p.document_id === docId);
+    const docTables = tables.filter((t) => t.document_id === docId);
+
+    const trashedItem: TrashedDocumentItem = {
+      document: docToDelete,
+      pages: docPages,
+      tables: docTables,
+      deleted_at:
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+        ', ' +
+        new Date().toLocaleDateString(),
+      deleted_by: currentUser ? currentUser.name : 'Geologist User',
+    };
+
+    setTrashedDocuments((prev) => [trashedItem, ...prev]);
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    setPages((prev) => prev.filter((p) => p.document_id !== docId));
+    setTables((prev) => prev.filter((t) => t.document_id !== docId));
+
+    if (selectedDocId === docId) {
+      const remaining = documents.filter((d) => d.id !== docId);
+      setSelectedDocId(remaining.length > 0 ? remaining[0].id : '');
+    }
+  };
+
+  const handleRecoverDocument = (docId: string) => {
+    const trashedItem = trashedDocuments.find((t) => t.document.id === docId);
+    if (!trashedItem) return;
+
+    setDocuments((prev) => [trashedItem.document, ...prev]);
+    setPages((prev) => [...trashedItem.pages, ...prev]);
+    setTables((prev) => [...trashedItem.tables, ...prev]);
+    setTrashedDocuments((prev) => prev.filter((t) => t.document.id !== docId));
+    setSelectedDocId(docId);
+  };
+
+  const handlePermanentlyDelete = (docId: string) => {
+    setTrashedDocuments((prev) => prev.filter((t) => t.document.id !== docId));
+  };
+
+  const handleRestoreAll = () => {
+    if (trashedDocuments.length === 0) return;
+    const restoredDocs = trashedDocuments.map((t) => t.document);
+    const restoredPages = trashedDocuments.flatMap((t) => t.pages);
+    const restoredTables = trashedDocuments.flatMap((t) => t.tables);
+
+    setDocuments((prev) => [...restoredDocs, ...prev]);
+    setPages((prev) => [...restoredPages, ...prev]);
+    setTables((prev) => [...restoredTables, ...prev]);
+    setTrashedDocuments([]);
+    if (restoredDocs.length > 0) {
+      setSelectedDocId(restoredDocs[0].id);
+    }
+  };
+
+  const handleEmptyTrash = () => {
+    setTrashedDocuments([]);
+  };
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isPitchOpen, setIsPitchOpen] = useState(false);
   const [isJudgeQAOpen, setIsJudgeQAOpen] = useState(false);
@@ -138,6 +254,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={handleNavigateTab}
         discrepancyCount={unresolvedDiscrepancyCount}
+        trashCount={trashedDocuments.length}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
@@ -200,6 +317,9 @@ export default function App() {
             onAddDocument={handleAddDocument}
             onOpenDocReader={() => handleNavigateTab('extraction')}
             onOpenQA={() => handleNavigateTab('qa')}
+            currentUser={currentUser}
+            onOpenLogin={() => setIsLoginOpen(true)}
+            onNavigateTab={handleNavigateTab}
           />
         )}
 
@@ -217,6 +337,21 @@ export default function App() {
             currentUser={currentUser}
             onOpenLogin={() => setIsLoginOpen(true)}
             onSelectQuickProfile={(user) => setCurrentUser(user)}
+            onDeleteDocument={handleDeleteDocument}
+            trashCount={trashedDocuments.length}
+            onRecoverDocument={handleRecoverDocument}
+          />
+        )}
+
+        {activeTab === 'trash' && (
+          <TrashTab
+            trashedDocuments={trashedDocuments}
+            onRecoverDocument={handleRecoverDocument}
+            onPermanentlyDelete={handlePermanentlyDelete}
+            onRestoreAll={handleRestoreAll}
+            onEmptyTrash={handleEmptyTrash}
+            onNavigateTab={handleNavigateTab}
+            onSelectDocument={setSelectedDocId}
           />
         )}
 

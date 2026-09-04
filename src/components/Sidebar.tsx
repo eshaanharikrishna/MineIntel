@@ -10,12 +10,14 @@ import {
   Cpu,
   AlertTriangle,
   X,
+  Trash2,
 } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
   onSelectTab: (tabId: string) => void;
   discrepancyCount: number;
+  trashCount?: number;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
 }
@@ -33,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onSelectTab,
   discrepancyCount,
+  trashCount = 0,
   isOpenMobile,
   onCloseMobile,
 }) => {
@@ -46,6 +49,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'upload',
       label: 'Documents',
       icon: <FileText className="w-5 h-5 shrink-0" />,
+    },
+    {
+      id: 'trash',
+      label: 'Trash',
+      icon: <Trash2 className="w-5 h-5 shrink-0" />,
+      badge: trashCount > 0 ? trashCount : undefined,
+      badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
     },
     {
       id: 'qa',
